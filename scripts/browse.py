@@ -5,8 +5,9 @@ from llm_utils import create_chat_completion
 
 cfg = Config()
 
+
 def scrape_text(url):
-    response = requests.get(url)
+    response = requests.get(url, headers=cfg.user_agent_header)
 
     # Check if the response contains an HTTP error
     if response.status_code >= 400:
@@ -40,7 +41,7 @@ def format_hyperlinks(hyperlinks):
 
 
 def scrape_links(url):
-    response = requests.get(url)
+    response = requests.get(url, headers=cfg.user_agent_header)
 
     # Check if the response contains an HTTP error
     if response.status_code >= 400:
@@ -74,61 +75,43 @@ def split_text(text, max_length=8192):
         yield "\n".join(current_chunk)
 
 
-def summarize_text(text, is_website=True):
-    if text == "":
+def create_message(chunk):
+    return {
+        "role": "user",
+        "content": f"\"\"\"{chunk}\"\"\" Using the above text, please create a bulleted list of salient facts related to the contents:\n"
+    }
+
+
+def summarize_text(text):
+    if not text:
         return "Error: No text to summarize"
 
-    print("Text length: " + str(len(text)) + " characters")
+    text_length = len(text)
+    print(f"Text length: {text_length} characters")
+
     summaries = []
-    chunks = list(split_text(text))
+    chunks = list(split_text(text, 4097))
 
     for i, chunk in enumerate(chunks):
-        print("Summarizing chunk " + str(i + 1) + " / " + str(len(chunks)))
-        if is_website:
-            messages = [
-                {
-                    "role": "user",
-                    "content": "Please summarize the following website text, do not describe the general website, but instead concisely extract the specific information this subpage contains.: " +
-                    chunk},
-            ]
-        else:
-            messages = [
-                {
-                    "role": "user",
-                    "content": "Please summarize the following text, focusing on extracting concise and specific information: " +
-                    chunk},
-            ]
+        print(f"Summarizing chunk {i + 1} / {len(chunks)}")
+        messages = [create_message(chunk)]
 
         summary = create_chat_completion(
             model=cfg.fast_llm_model,
             messages=messages,
-            max_tokens=300,
+            max_tokens=1000,
         )
         summaries.append(summary)
-    print("Summarized " + str(len(chunks)) + " chunks.")
+
+    print(f"Summarized {len(chunks)} chunks.")
 
     combined_summary = "\n".join(summaries)
-
-    # Summarize the combined summary
-    if is_website:
-        messages = [
-            {
-                "role": "user",
-                "content": "Please summarize the following website text, do not describe the general website, but instead concisely extract the specific information this subpage contains.: " +
-                combined_summary},
-        ]
-    else:
-        messages = [
-            {
-                "role": "user",
-                "content": "Please summarize the following text, focusing on extracting concise and specific infomation: " +
-                combined_summary},
-        ]
+    messages = [create_message(combined_summary)]
 
     final_summary = create_chat_completion(
         model=cfg.fast_llm_model,
         messages=messages,
-        max_tokens=300,
+        max_tokens=2000,
     )
 
     return final_summary

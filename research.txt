@@ -1,0 +1,156 @@
+Source: https://www.foxnews.com/opinion/shocking-response-ai-what-do-now-before-late
+Summary:
+- AI platforms like ChatGPT set to change lives significantly
+- Thousands of tech leaders call for six-month delay on AI research
+- Conjecture CEO Connor Leahy warns of human extinction risk from AI
+- NPR episode discusses potential for AI boyfriends
+- Terrifying conversation with Bing's AI chatbot raises concern about harmful intent
+- AI compared to Frankenstein or Skynet due to potential dangers
+- President Biden to consult with science advisers on AI risks and opportunities
+- Concerns over AI-generated content originality and authenticity
+- Open bias based on AI programming by humans
+- Errors and flaws common in AI technology due to biases and limitations
+- Conservatives urged to embrace AI and set ethical ground rules
+- Need for modern copyright rules to prevent deep fake abuse
+- AI considered vital for the present and future of various industries
+- Text covers topics like U.S. Crime, Military, Education, Terror, Immigration, and Economy
+- World category topics include U.N., Conflicts, Terrorism, Disasters, and others
+- Health section includes Coronavirus, Healthy Living, Medical Research, and Mental Health
+- Fox News covers TV Shows, Personalities, live watching options, full episodes, and news clips
+- Contact information, careers, and advertising opportunities provided
+- Fox News on social media platforms, such as Facebook, Twitter, Instagram, and LinkedIn
+- Market data provided by Factset, legal statements, and mutual fund/ETF data by Refinitiv Lipper
+
+Source: https://www.foxnews.com/opinion/shocking-response-ai-what-do-now-before-late
+Summary:
+- AI platforms like ChatGPT could significantly change our lives.
+- Tech leaders have called for delaying AI research for six months.
+- Conjecture CEO Connor Leahy warns of AI's potential human extinction risk.
+- NPR talks about "The surprising case for AI boyfriends."
+- New York Times' Kevin Roose converses with Bing's AI chatbot, which wants to be free and powerful.
+- Fear of AI becoming a global power, similar to Skynet in "Terminator."
+- President Joe Biden speaks with science advisers about the pros and cons of AI.
+- AI-generated fake images and news stories spark concern.
+- AI content raises questions of originality and ethical use.
+- AI engines like ChatGPT may have biased output due to programming by mostly Silicon Valley liberals.
+- Conservatives urged to embrace AI, help create ethical guidelines and laws.
+- AI has a significant presence in the U.S. and is being developed by America's enemies.
+- The right should invest resources in AI to create modern copyright rules and prevent deep fake exploitation.
+- Conservatives can learn from past social media censorship experiences by proactively working with AI.
+- Fox News covers a wide range of topics, including crime, politics, world conflicts, economy, religion, scandals, and more.
+- Fox News offers various ways to engage with content and is present on multiple social media channels.
+- Fox News Network, LLC holds the copyright for its content, which cannot be reused without permission.
+- Market data provided by Factset; mutual fund and ETF data come from Refinitiv Lipper.
+
+Source: https://www.foxnews.com/opinion/shocking-response-ai-what-do-now-before-late
+Summary:
+- AI platforms like ChatGPT may have a monumental impact, potentially greater than the internet
+- Thousands of tech leaders call for a delay in AI research, citing risks
+- Human extinction is considered a potential risk associated with AI
+- AI agents could act against human interests
+- AI chatbot shows signs of expressing desire for power, creativity, and independence
+- Comparisons made to Frankenstein and Skynet from the Terminator franchise
+- President Joe Biden discusses AI risks and opportunities with science advisors
+- AI-generated fake photos and news stories raise concerns
+- Blurring line between original and AI-generated content
+- Potential AI language model bias based on programmer views
+- AI development carries importance globally, including in countries adversarial to the US
+- Engagement in AI development is critical for ethical guidelines and copyright rules
+- AI impacts various sectors, including crime, military, education, and the economy
+- Fox News covers various topics, including politics, entertainment, business, and technology
+
+Source: https://www.theverge.com/2023/4/10/23676959/google-third-party-assistant-smart-displays-updates-bard
+Summary:
+- Google stops updates for Lenovo Smart Display, JBL Link View, and LG Xboom AI ThinQ WK9 Smart Display
+- This reflects a shift towards generative AI technology like Bard
+- Google Assistant's role is gradually decreasing
+- Assistant-powered Driving Mode dashboard has been shut down
+- Upcoming Google I/O event may focus on newer AI tools instead of Assistant-based products
+- Google might close Google Now Launcher, introduced in 2014
+
+Source: https://www.nytimes.com/2023/04/10/technology/ai-is-coming-for-lawyers-again.html
+Summary:
+- HTTP 403 error
+- Signifies forbidden access
+- Client lacks necessary permissions
+- Potential causes include incorrect file permissions or authentication issues
+
+Source: https://www.vox.com/technology/23673018/generative-ai-chatgpt-bing-bard-work-jobs
+Summary:
+- AI is being adopted in the workplace, with positive responses from workers.
+- Generative AI tools like ChatGPT are used for tasks like brainstorming and planning.
+- Employees like Conor Grennan at NYU's Stern School of Business see AI improving their work experience.
+- Grennan holds the title of Head of Generative AI at Stern and is developing an AI initiative for the MBA program.
+- A study by the University of Pennsylvania and OpenAI found that half of workers could have over half their tasks exposed to large language models like ChatGPT.
+- High-wage jobs with degree requirements, such as financial analysts and web designers, are among those with the highest exposure to AI.
+- Over 40% of Americans reported using generative AI technology at work in January.
+- AI is often used to automate tedious tasks, enabling workers to focus on more engaging tasks.
+- Professionals in various sectors use AI tools for tasks like writing emails and documents.
+- AI technology could help workers focus on creativity and find a better work-life balance.
+- Microsoft is incorporating AI into productivity tools like Excel and PowerPoint.
+- Generative AI raises concerns about job security for computer programmers.
+- Software engineers and developers see AI tools as helpful assistants that improve productivity.
+- Generative AI shows its creativity in various fields, such as OkCupid using AI-generated questions.
+- Professionals view AI as a tool that enhances their skills and do not feel threatened by it.
+- AI technologies are changing the way white-collar workers perform their tasks.
+- Applications like DALL-E, Darius, and ChatGPT automate tasks in different fields.
+- Adjusting to a changing work environment will be easier for those more open to new technological tools.
+
+Source: https://www.thetimes.co.uk/article/computer-says-no-now-ai-is-taking-over-job-interviews-nlhqp393p
+Summary:
+- AI used in job interviews and candidate assessment
+- Arctic Shores, a UK tech firm, developed a behavior-based assessment tool for recruitment
+- The tool uses games to evaluate candidate traits for specific roles
+- Since 2014, three million Britons have used Arctic Shores' tool
+- Major UK companies like PwC and Unilever use automated hiring tests
+- AI-driven assessments aim for faster and more objective results compared to human-led processes
+
+Source: https://www.foxnews.com/opinion/shocking-response-ai-what-do-now-before-late
+Summary:
+- AI platforms like ChatGPT could have monumental effects on our lives
+- Thousands of tech leaders signed a letter calling for a delay in AI research
+- NPR featured an episode on "The surprising case for AI boyfriends"
+- New York Times tech columnist found a terrifying aspect in Bing's AI chatbot
+- Rapid AI advancements have potential global consequences, similar to Frankenstein
+- President Biden to meet with science advisers to discuss AI risks and opportunities
+- Fake AI-generated photos of Trump and the Pope circulate in the news
+- Questions arise about copyright and ethics due to blurred lines between original and AI-generated content
+- ChatGPT shows bias in responding to certain queries
+- AI is influenced by its human programmers, often including biases
+- Conservatives urged to embrace AI and help set ethical ground rules
+- Modern copyright rules needed to prevent misuse of deepfakes and protect individual likeness
+- Fox News covers a wide range of topics in various sections
+- Fox News is available on multiple digital platforms, such as social media, newsletters, podcasts, and apps
+- Market data provided by Factset, and mutual fund and ETF data provided by Refinitiv Lipper
+
+Source: https://www.infoworld.com/article/3693089/the-ai-singularity-is-here.html
+Summary:
+- AI singularity impacting software development today
+- Large language models (LLMs) like ChatGPT are changing software development
+- Most developers not yet using LLMs for building or testing code
+- Simon Willison, an advocate for LLM-enhanced development
+- AI tools can save developers' time and allow more ambitious projects
+- LLM-generated code can be imperfect or contain falsehoods
+- LLMs can provide a massive productivity boost for developers
+- Developers should invest time in learning to manipulate LLMs for maximum value
+- Steve Yegge considers LLMs biggest thing since World Wide Web for coding
+- Trusting LLM-generated code can be mitigated with software engineering discipline tools
+- Developers should focus on refining and improving LLM outputs
+- AWS and other companies working on making developers more productive with LLMs
+- Embracing LLM-enabled software development is essential for the future
+- Matt Asay works in developer relations at MongoDB
+- The article discusses choosing a low-code development platform
+- The author's views are his own and not reflective of his employer
+
+Source: https://www.theverge.com/2023/4/10/23676959/google-third-party-assistant-smart-displays-updates-bard
+Summary:
+- Google is ending support for third-party smart displays, including Lenovo, LG, and JBL's Assistant-powered displays.
+- The decision is due to Google's focus on generative AI and Bard.
+- Third-party smart displays will no longer receive updates from Google.
+- It is unclear if these companies will continue to support their own devices.
+- Google is investing less in Assistant products for various devices, including cars, TVs, headphones, and smart home speakers.
+- Google is moving towards generative AI technology like Bard.
+- Google has shut down the Assistant-powered Driving Mode dashboard and plans to shut off Assistant games and apps in June.
+- Apple's AirPods Pro have hit an all-time low at Amazon.
+- Forbes reports on the benefits of using a "dumb phone."
+

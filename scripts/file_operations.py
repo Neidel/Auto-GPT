@@ -31,7 +31,10 @@ def read_file(filename):
 def write_to_file(filename, text):
     try:
         filepath = safe_join(working_directory, filename)
-        with open(filepath, "w") as f:
+        directory = os.path.dirname(filepath)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        with open(filepath, "a") as f:
             f.write(text)
         return "File written to successfully."
     except Exception as e:
@@ -55,3 +58,21 @@ def delete_file(filename):
         return "File deleted successfully."
     except Exception as e:
         return "Error: " + str(e)
+
+
+def search_files(directory):
+    found_files = []
+
+    if directory == "" or directory == "/":
+        search_directory = working_directory
+    else:
+        search_directory = safe_join(working_directory, directory)
+
+    for root, _, files in os.walk(search_directory):
+        for file in files:
+            if file.startswith('.'):
+                continue
+            relative_path = os.path.relpath(os.path.join(root, file), working_directory)
+            found_files.append(relative_path)
+
+    return found_files
