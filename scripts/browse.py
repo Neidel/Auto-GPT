@@ -75,21 +75,14 @@ def split_text(text, max_length=8192):
         yield "\n".join(current_chunk)
 
 
-def create_message(chunk, desired_information):
+def create_message(chunk):
     return {
         "role": "user",
-        "content": f"\"\"\"{chunk}\"\"\" Using the above text, create a bulleted list of salient facts related to the desired inquiry:\n{desired_information}\nYour list of related salient facts:\n"
+        "content": f"\"\"\"{chunk}\"\"\" Using the above text, please create a bulleted list of salient facts related to the contents:\n"
     }
 
 
-def create_final_message(messages):
-    return {
-        "role": "user",
-        "content": f"\"\"\"{messages}\"\"\" Using the list of salient facts above, clean the list of any duplicates and consolidate factual data where necessary:\n"
-    }
-
-
-def summarize_text(text, desired_information):
+def summarize_text(text):
     if not text:
         return "Error: No text to summarize"
 
@@ -101,7 +94,7 @@ def summarize_text(text, desired_information):
 
     for i, chunk in enumerate(chunks):
         print(f"Summarizing chunk {i + 1} / {len(chunks)}")
-        messages = [create_message(chunk, desired_information)]
+        messages = [create_message(chunk)]
 
         summary = create_chat_completion(
             model=cfg.fast_llm_model,
@@ -113,7 +106,7 @@ def summarize_text(text, desired_information):
     print(f"Summarized {len(chunks)} chunks.")
 
     combined_summary = "\n".join(summaries)
-    messages = [create_final_message(combined_summary)]
+    messages = [create_message(combined_summary)]
 
     final_summary = create_chat_completion(
         model=cfg.fast_llm_model,

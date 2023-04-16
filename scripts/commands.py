@@ -19,6 +19,8 @@ from googleapiclient.errors import HttpError
 from llm_utils import create_chat_completion
 from tqdm import tqdm
 import ast
+from datetime import datetime, timedelta
+
 
 cfg = Config()
 
@@ -27,6 +29,10 @@ executed_urls = []
 task_queue = []
 
 current_task_notes = ''
+completed_tasks = []
+last_result = ''
+
+visited_urls = []
 
 
 class CollectionManager:
@@ -121,46 +127,32 @@ def is_valid_int(value):
         return False
 
 
-def current_task_notes_report():
-    global current_task_notes
-    return current_task_notes
-
-
-def reset_task_notes():
-    global current_task_notes
-    current_task_notes = ''
-
-
-def get_commands(response):
+def get_command(response):
     try:
         response_json = fix_and_parse_json(response)
+        
+        if "command" not in response_json:
+            return "Error:" , "Missing 'command' object in JSON"
+        
+        command = response_json["command"]
 
-        if "thoughts" not in response_json:
-            return [], "Missing 'thoughts' object in JSON - response: {response}"
+        if "name" not in command:
+            return "Error:", "Missing 'name' field in 'command' object"
+        
+        command_name = command["name"]
 
-        thoughts = response_json["thoughts"]
+        # Use an empty dictionary if 'args' field is not present in 'command' object
+        arguments = command.get("args", {})
 
-        if "plan" not in thoughts:
-            return [], "Missing 'plan' object in 'thoughts' - response: {response}"
+        if not arguments:
+            arguments = {}
 
-        if "commands" not in response_json:
-            return [], "Missing 'commands' object in JSON - response: {response}"
-
-        commands_list = response_json["commands"]
-        commands = []
-
-        for command in commands_list:
-            command_name = command["name"]
-            arguments = command["args"]
-            commands.append((command_name, arguments))
-
-        return commands, None
+        return command_name, arguments
     except json.decoder.JSONDecodeError:
-        return [], "Invalid JSON"
+        return "Error:", "Invalid JSON"
+    # All other errors, return "Error: + error message"
     except Exception as e:
-        return [], str(e)
-
-
+        return "Error:", str(e)
 
 
 def resolve_redirect_url(url):
@@ -193,17 +185,12 @@ def find_news():
         print(f"[{datetime.datetime.now()}]Error: {e}")
 
 
-def current_task_report():
-    global current_task
-    return current_task
-
-
 def execute_command(command_name, arguments):
     memory = get_memory(cfg)
 
     try:
         if command_name == "google":
-            return google_official_search(arguments["input"])
+            return search_google_raw(arguments["input"])
 
         elif command_name == "memory_add":
             return memory.add(arguments["string"])
@@ -235,7 +222,7 @@ def execute_command(command_name, arguments):
         elif command_name == "search_files":
             return search_files(arguments["directory"])
         elif command_name == "browse_website":
-            return browse_website(arguments["url"], arguments["desired_information"])
+            return browse_website(arguments["url"])
         elif command_name == "evaluate_code":
             return ai.evaluate_code(arguments["code"])
         elif command_name == "improve_code":
@@ -248,7 +235,7 @@ def execute_command(command_name, arguments):
             return generate_image(arguments["prompt"])
 
         elif 'ask_user' in command_name:
-            return begin_quest(arguments["prompt"])
+            return ask_user(arguments["prompt"])
 
         elif 'ask_myself' in command_name:
             return ask_myself(arguments["prompt"])
@@ -264,9 +251,9 @@ def execute_command(command_name, arguments):
 
         elif command_name == "get_next_research_targets":
             if cfg.google_api_key and (cfg.google_api_key.strip() if cfg.google_api_key else None):
-                return google_official_search(get_next_search_query(search_generator))
+                return scrub_google_results(get_next_search_query(search_generator))
             else:
-                return google_search(get_next_search_query(search_generator))
+                return scrub_google_results(google_search(get_next_search_query(search_generator)))
 
         elif command_name == "add_item_to":
             return cm.add_item_to(arguments["item"], arguments["target"])
@@ -285,15 +272,6 @@ def execute_command(command_name, arguments):
         elif command_name == "get_key_value":
             return cm.get_key_value(arguments["target"])
 
-        elif command_name == "fetch_next_task":
-            return fetch_next_task()
-
-        elif command_name == "task_complete":
-            return task_complete()
-
-        elif command_name == "add_mission_critical_notes":
-            return add_mission_critical_notes(arguments["notes"])
-
         elif command_name == "app_reviews":
             return app_review_blog_writer(arguments["app_name"])
 
@@ -306,103 +284,37 @@ def execute_command(command_name, arguments):
         return "Error: " + str(e)
 
 
-def add_mission_critical_notes(notes):
-    global current_task_notes
-    current_task_notes += notes + "\n\n"
-
-
-def task_complete():
-    global current_task
-    current_task = fetch_next_task()
-
-
 def ask_myself(prompt):
     # print('Asking myself: ' + prompt)
     assistant_reply = create_chat_completion(
         model='gpt-3.5-turbo',
         messages=[{"role": "user", "content": prompt}, ]
     )
-    # print(f'Bicameral Buddy: {assistant_reply}')
+    # print(f'Assistant Thinks: {assistant_reply}')
     return assistant_reply
 
 
-def ask_myself_smart(prompt):
-    # print('Asking myself: ' + prompt)
-    assistant_reply = create_chat_completion(
-        model='gpt-4',
-        messages=[{"role": "user", "content": prompt}, ]
-    )
-    # print(f'Bicameral Buddy: {assistant_reply}')
-    return assistant_reply
-
-
-def store_new_task(task):
-    task_queue.append(task)
-    # print(f'Current Task Queue:\n{task_queue}\n')
-
-
-def task_complete():
-    return fetch_next_task()
-
-
-def fetch_next_task():
-    if len(task_queue) > 0:
-        return task_queue.pop(0)
-    else:
-        print(f'No tasks in queue. Waiting forever.')
-        while True:
-            time.sleep(10)
-
-
-def task_extraction_specialist(raw_tasks):
-    cleaned_up = ask_myself(f"Go through the following data and create a python formatted list of strings, each representing a single task:\n{raw_tasks}\n\nPython List:\n")
-    return cleaned_up
-
-
-def extract_tasks(prompt, context):
-    answer = ask_myself(f"Users message: {prompt} \n Users context: {context} \n Task mapping: Create a mapping of user intents to associated subtasks. Each intent can be associated with a list of subtasks that must be completed to address the user's request. For example, if the user intent is 'recommendation', the subtasks might include 'identify_preferences', 'gather_options', and 'present_recommendations'")
-    # print(f'Initial Task Mapping: {answer}')
-
-    parsed_tasks = ask_myself_smart(f"Unparsed Task List: {answer}\n Task parsing: Parse the list of tasks into a python formatted list of strings. Each string should be a single task. This list will be converted into a python list object:\n")
-    # print(f'Parsed Tasks: {parsed_tasks}')
-    # Convert the parsed tasks into a python list variable
-    try:
-        formatted_tasks = ast.literal_eval(f"{parsed_tasks}")
-        # print(f'Formatted Tasks: {formatted_tasks}')
-    except Exception as e:
-        print(f"Error parsing tasks: {e} - {parsed_tasks}")
-        try:
-            formatted_tasks = ast.literal_eval(task_extraction_specialist(parsed_tasks).replace("'", '"'))
-            print(f'Formatted Tasks: {formatted_tasks}')
-        except Exception as e:
-            print(f"Error parsing tasks with specialist, returning empty default: {e}")
-            formatted_tasks = []
-
-    return formatted_tasks
-
-
-def add_tasks_to_queue(task_list):
-    for task in task_list:
-        print(f'Adding task to queue: {task}')
-        store_new_task(task)
+def extract_tasks(prompt):
+    return ask_myself(f"Users message: {prompt} \n Task mapping: Create a mapping of user intents to associated subtasks. Each intent can be associated with a list of subtasks that must be completed to address the user's request. For example, if the user intent is 'recommendation', the subtasks might include 'identify_preferences', 'gather_options', and 'present_recommendations'")
 
 
 def extract_context(prompt):
-    return ask_myself(f"Users message: {prompt} \n Context extraction: Extract contextual information from the user's input that can help guide the generation of tasks to accomplish the desired goal. This might involve identifying relevant keywords, entities, or relationships within the text.")
+    return ask_myself(f"Users message: {prompt} \n Context extraction: Extract contextual information from the user's input that can help guide the execution of subtasks. This might involve identifying relevant keywords, entities, or relationships within the text.")
 
 
-def begin_quest():
-    print('Please state the nature of your medical emergency:')
-    # response = input()
-    response = "I would like you to write a 1500 word article on the current state of legality of online betting in maryland as of April 2023."
+def determine_subtask_priorities(prompt, tasks):
+    return ask_myself(f"Users message: {prompt} \n Extrapolated Tasks: {tasks} \n Subtask prioritization: Prioritize the order in which subtasks should be executed based on the user's input and the extracted context. Some subtasks may depend on the completion of others, or their priority may be determined by the user's specific requirements.")
+
+
+def ask_user(prompt):
+    print(prompt)
+    response = input()
+    tasks = extract_tasks(response)
     context = extract_context(response)
-    print(f'Context - {context}')
-    tasks = extract_tasks(response, context)
-    add_tasks_to_queue(tasks)
-
-
-# "I would like you to write a 1500 word article on the current state of legality of online betting in maryland as of April 2023."
-begin_quest()
+    prioritized = determine_subtask_priorities(response, tasks)
+    internal_reasoning = f'Users Response: {response} \n Internal reasoning: {tasks} \n Prioritized Tasks: {prioritized} \n Internal Context Assessment: {context} \n'
+    print(internal_reasoning)
+    return internal_reasoning
 
 
 def app_reviews(app_name='com.fliff.fapp', sample_size=400):
@@ -505,7 +417,7 @@ def get_datetime():
         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def google_search(query, num_results=8):
+def google_search(query, num_results=3):
     search_results = []
     for j in ddg(query, max_results=num_results):
         search_results.append(j)
@@ -572,6 +484,18 @@ Sweepstakes casinos online in New York must also comply with US sweepstakes laws
     return blob
 
 
+def scrub_google_results(url_list):
+    cleaned_list = []
+    for url in url_list:
+        if url in executed_urls:
+            continue
+        elif url in visited_urls:
+            continue
+        else:
+            cleaned_list.append(url)
+    return cleaned_list
+
+
 def page_processed(browsed_url):
     if browsed_url in executed_urls:
         return True
@@ -580,16 +504,22 @@ def page_processed(browsed_url):
         return False
 
 
-def browse_website(url, desired_information):
-    summary = get_text_summary(url, desired_information)
-    result = f"""Website Content Summary: {summary}"""
-    return result
+def browse_website(url):
+    if url not in visited_urls:
+        visited_urls.append(url)
+        # summary = get_text_summary(get_tldr(url), desired_information)
+        # result = f"""Website Content Summary: {summary}"""
+        summary = get_text_summary(url)
+        result = f"""Website Content Summary: {summary}"""
+        return result
+    else:
+        return "This URL has already been visited. Proceed to another URL on the list."
 
 
 def get_tldr(target):
     url = "https://tldr-text-analysis.p.rapidapi.com/summarize/"
 
-    querystring = {"text": target, "max_sentences": "10"}
+    querystring = {"text": target, "max_sentences": "20"}
 
     headers = {
         "X-RapidAPI-Key": "68229cdbe2msh5723f22e8f8ab56p1eaefajsn20eccd66fc3c",
@@ -602,9 +532,9 @@ def get_tldr(target):
     return response.text
 
 
-def get_text_summary(url, desired_information):
+def get_text_summary(url):
     text = browse.scrape_text(url)
-    summary = browse.summarize_text(text, desired_information)
+    summary = browse.summarize_text(text)
 
     with open("research.txt", "a") as f:
         f.write(f'Source: {url}\nSummary:\n{summary}\n\n')
@@ -710,6 +640,9 @@ def get_search_queries():
         yield query
 
 
+
+
+
 def message_agent(key, message):
     global cfg
 
@@ -739,8 +672,54 @@ def delete_agent(key):
     return f"Agent {key} deleted."
 
 
+def gregorian_to_julian(date):
+    year, month, day = date.year, date.month, date.day
+    if month < 3:
+        year -= 1
+        month += 12
+    A = int(year / 100)
+    B = 2 - A + int(A / 4)
+    return int(365.25 * (year + 4716)) + int(30.6001 * (month + 1)) + day + B - 1524
+
+
+def calculate_julian_strings():
+    today = datetime.now()
+    one_week_ago = today - timedelta(weeks=52)
+
+    today_julian = gregorian_to_julian(today)
+    one_week_ago_julian = gregorian_to_julian(one_week_ago)
+
+    return f"daterange:{one_week_ago_julian}-{today_julian}"
+
+
+def search_google_raw(query, num_results=3):
+    url = "https://google-web-search1.p.rapidapi.com/"
+
+    querystring = {"query": query, "limit": num_results, "related_keywords": "false"}
+
+    headers = {
+        "X-RapidAPI-Key": "68229cdbe2msh5723f22e8f8ab56p1eaefajsn20eccd66fc3c",
+        "X-RapidAPI-Host": "google-web-search1.p.rapidapi.com"
+    }
+
+    response = requests.request("GET", url, headers=headers, params=querystring)
+
+    result_list = []
+    for url in response.json()["results"]:
+        result_list.append(url["url"])
+
+    print(f'Searched for: {query}\nFound {len(result_list)} results\n{result_list}')
+    return result_list
+
+
+def search_google(query, num_results=3):
+    raw_results = scrub_google_results(search_google_raw(query, num_results))
+
+    return raw_results
+
+
 search_generator = get_search_queries()
-current_task = fetch_next_task()
+
 
 if __name__ == '__main__':
     app_review_blog_writer()
