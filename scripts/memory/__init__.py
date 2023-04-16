@@ -1,4 +1,5 @@
 from memory.local import LocalCache
+
 try:
     from memory.redismem import RedisMemory
 except ImportError:
