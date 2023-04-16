@@ -162,7 +162,11 @@ def main() -> None:
     cfg = Config()
     cfg.set_continuous_mode(True)
 
-    project = "Investigate the status of online casino gaming legalization in Maryland, including any proposed bills and licensing processes."
+    # Research Backlog
+    # Gather information on responsible gaming resources, initiatives, and support groups available in Maryland.
+    # Develop a list of frequently asked questions (FAQs) specific to Maryland sports betting and online gambling.
+    # Determine the legal status of real-money online casinos in Maryland and any related regulations.
+    project = "Compile a list of retail (land-based) casinos in Maryland, including their locations, features, and offerings."
 
     constraints = """
     1. Exclusively use the commands listed in double quotes e.g. "command name"
@@ -171,7 +175,8 @@ def main() -> None:
     commands = """
     1. Google Search: "google", args: "input": "<search>"
     2. Browse Website: "browse_website", args: "url": "<url>", "desired_information": "<desired_information>"
-    3. Write to file: "write_to_file", args: "file": "<file>", "text": "<text>" """
+    3. Mark Project Completed: "mark_project_completed", args: ""
+    """
 
     resources = "1. Internet access."
 

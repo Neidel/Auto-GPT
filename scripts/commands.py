@@ -92,7 +92,8 @@ def execute_command(command_name, arguments):
         "ask_user": lambda args: ask_user(args["prompt"]) if 'ask_user' in command_name else None,
         "ask_myself": lambda args: ask_myself(args["prompt"]) if 'ask_myself' in command_name else None,
         "take_break": lambda args: take_break(),
-        "task_complete": lambda args: shutdown()
+        "task_complete": lambda args: shutdown(),
+        "mark_project_completed": lambda args: shutdown(),
     }
 
     # Execute the appropriate command handler based on the command name
@@ -340,14 +341,30 @@ def get_tldr(target):
     return response.text
 
 
+def extract_sources(file_path):
+    sources = []
+    with open(file_path, 'r') as file:
+        for line in file:
+            # Check if the line starts with "Source:"
+            if line.startswith("Source:"):
+                # Extract the URL by removing the "Source:" prefix and stripping whitespace
+                url = line[len("Source:"):].strip()
+                sources.append(url)
+    return sources
+
+
 def get_text_summary(url):
-    text = browse.scrape_text(url)
-    summary = browse.summarize_text(text)
+    if url not in KNOWN_RESEARCH_SOURCES:
+        KNOWN_RESEARCH_SOURCES.append(url)
+        text = browse.scrape_text(url)
+        summary = browse.summarize_text(text)
+        if '404' not in summary:
+            with open("research.txt", "a") as f:
+                f.write(f'Source: {url}\nSummary:\n{summary}\n\n')
 
-    with open("research.txt", "a") as f:
-        f.write(f'Source: {url}\nSummary:\n{summary}\n\n')
-
-    return """ "Result" : """ + summary
+        return """ "Result" : """ + summary
+    else:
+        return "This URL has already been visited and researched. Proceed to another URL on the list."
 
 
 def get_hyperlinks(url):
@@ -420,3 +437,6 @@ def take_break():
     print("Taking a break...")
     time.sleep(1800)
     return "Break over"
+
+
+KNOWN_RESEARCH_SOURCES = extract_sources('research.txt')
