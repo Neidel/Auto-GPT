@@ -18,8 +18,15 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from llm_utils import create_chat_completion
 from tqdm import tqdm
+import ast
 
 cfg = Config()
+
+executed_urls = []
+
+task_queue = []
+
+current_task_notes = ''
 
 
 class CollectionManager:
@@ -113,32 +120,47 @@ def is_valid_int(value):
     except ValueError:
         return False
 
-def get_command(response):
+
+def current_task_notes_report():
+    global current_task_notes
+    return current_task_notes
+
+
+def reset_task_notes():
+    global current_task_notes
+    current_task_notes = ''
+
+
+def get_commands(response):
     try:
         response_json = fix_and_parse_json(response)
-        
-        if "command" not in response_json:
-            return "Error:" , "Missing 'command' object in JSON"
-        
-        command = response_json["command"]
 
-        if "name" not in command:
-            return "Error:", "Missing 'name' field in 'command' object"
-        
-        command_name = command["name"]
+        if "thoughts" not in response_json:
+            return [], "Missing 'thoughts' object in JSON - response: {response}"
 
-        # Use an empty dictionary if 'args' field is not present in 'command' object
-        arguments = command.get("args", {})
+        thoughts = response_json["thoughts"]
 
-        if not arguments:
-            arguments = {}
+        if "plan" not in thoughts:
+            return [], "Missing 'plan' object in 'thoughts' - response: {response}"
 
-        return command_name, arguments
+        if "commands" not in response_json:
+            return [], "Missing 'commands' object in JSON - response: {response}"
+
+        commands_list = response_json["commands"]
+        commands = []
+
+        for command in commands_list:
+            command_name = command["name"]
+            arguments = command["args"]
+            commands.append((command_name, arguments))
+
+        return commands, None
     except json.decoder.JSONDecodeError:
-        return "Error:", "Invalid JSON"
-    # All other errors, return "Error: + error message"
+        return [], "Invalid JSON"
     except Exception as e:
-        return "Error:", str(e)
+        return [], str(e)
+
+
 
 
 def resolve_redirect_url(url):
@@ -171,18 +193,18 @@ def find_news():
         print(f"[{datetime.datetime.now()}]Error: {e}")
 
 
+def current_task_report():
+    global current_task
+    return current_task
+
+
 def execute_command(command_name, arguments):
     memory = get_memory(cfg)
 
     try:
         if command_name == "google":
+            return google_official_search(arguments["input"])
 
-            # Check if the Google API key is set and use the official search method
-            # If the API key is not set or has only whitespaces, use the unofficial search method
-            if cfg.google_api_key and (cfg.google_api_key.strip() if cfg.google_api_key else None):
-                return google_official_search(arguments["input"])
-            else:
-                return google_search(arguments["input"])
         elif command_name == "memory_add":
             return memory.add(arguments["string"])
         elif command_name == "fetch_related_memories":
@@ -213,7 +235,7 @@ def execute_command(command_name, arguments):
         elif command_name == "search_files":
             return search_files(arguments["directory"])
         elif command_name == "browse_website":
-            return browse_website(arguments["url"])
+            return browse_website(arguments["url"], arguments["desired_information"])
         elif command_name == "evaluate_code":
             return ai.evaluate_code(arguments["code"])
         elif command_name == "improve_code":
@@ -225,11 +247,26 @@ def execute_command(command_name, arguments):
         elif command_name == "generate_image":
             return generate_image(arguments["prompt"])
 
+        elif 'ask_user' in command_name:
+            return begin_quest(arguments["prompt"])
+
+        elif 'ask_myself' in command_name:
+            return ask_myself(arguments["prompt"])
+
         elif command_name == "find_news":
             return find_news()
 
         elif command_name == "take_break":
             return take_break()
+
+        elif command_name == "check_source_article":
+            return check_source_article()
+
+        elif command_name == "get_next_research_targets":
+            if cfg.google_api_key and (cfg.google_api_key.strip() if cfg.google_api_key else None):
+                return google_official_search(get_next_search_query(search_generator))
+            else:
+                return google_search(get_next_search_query(search_generator))
 
         elif command_name == "add_item_to":
             return cm.add_item_to(arguments["item"], arguments["target"])
@@ -248,6 +285,15 @@ def execute_command(command_name, arguments):
         elif command_name == "get_key_value":
             return cm.get_key_value(arguments["target"])
 
+        elif command_name == "fetch_next_task":
+            return fetch_next_task()
+
+        elif command_name == "task_complete":
+            return task_complete()
+
+        elif command_name == "add_mission_critical_notes":
+            return add_mission_critical_notes(arguments["notes"])
+
         elif command_name == "app_reviews":
             return app_review_blog_writer(arguments["app_name"])
 
@@ -258,6 +304,105 @@ def execute_command(command_name, arguments):
     # All errors, return "Error: + error message"
     except Exception as e:
         return "Error: " + str(e)
+
+
+def add_mission_critical_notes(notes):
+    global current_task_notes
+    current_task_notes += notes + "\n\n"
+
+
+def task_complete():
+    global current_task
+    current_task = fetch_next_task()
+
+
+def ask_myself(prompt):
+    # print('Asking myself: ' + prompt)
+    assistant_reply = create_chat_completion(
+        model='gpt-3.5-turbo',
+        messages=[{"role": "user", "content": prompt}, ]
+    )
+    # print(f'Bicameral Buddy: {assistant_reply}')
+    return assistant_reply
+
+
+def ask_myself_smart(prompt):
+    # print('Asking myself: ' + prompt)
+    assistant_reply = create_chat_completion(
+        model='gpt-4',
+        messages=[{"role": "user", "content": prompt}, ]
+    )
+    # print(f'Bicameral Buddy: {assistant_reply}')
+    return assistant_reply
+
+
+def store_new_task(task):
+    task_queue.append(task)
+    # print(f'Current Task Queue:\n{task_queue}\n')
+
+
+def task_complete():
+    return fetch_next_task()
+
+
+def fetch_next_task():
+    if len(task_queue) > 0:
+        return task_queue.pop(0)
+    else:
+        print(f'No tasks in queue. Waiting forever.')
+        while True:
+            time.sleep(10)
+
+
+def task_extraction_specialist(raw_tasks):
+    cleaned_up = ask_myself(f"Go through the following data and create a python formatted list of strings, each representing a single task:\n{raw_tasks}\n\nPython List:\n")
+    return cleaned_up
+
+
+def extract_tasks(prompt, context):
+    answer = ask_myself(f"Users message: {prompt} \n Users context: {context} \n Task mapping: Create a mapping of user intents to associated subtasks. Each intent can be associated with a list of subtasks that must be completed to address the user's request. For example, if the user intent is 'recommendation', the subtasks might include 'identify_preferences', 'gather_options', and 'present_recommendations'")
+    # print(f'Initial Task Mapping: {answer}')
+
+    parsed_tasks = ask_myself_smart(f"Unparsed Task List: {answer}\n Task parsing: Parse the list of tasks into a python formatted list of strings. Each string should be a single task. This list will be converted into a python list object:\n")
+    # print(f'Parsed Tasks: {parsed_tasks}')
+    # Convert the parsed tasks into a python list variable
+    try:
+        formatted_tasks = ast.literal_eval(f"{parsed_tasks}")
+        # print(f'Formatted Tasks: {formatted_tasks}')
+    except Exception as e:
+        print(f"Error parsing tasks: {e} - {parsed_tasks}")
+        try:
+            formatted_tasks = ast.literal_eval(task_extraction_specialist(parsed_tasks).replace("'", '"'))
+            print(f'Formatted Tasks: {formatted_tasks}')
+        except Exception as e:
+            print(f"Error parsing tasks with specialist, returning empty default: {e}")
+            formatted_tasks = []
+
+    return formatted_tasks
+
+
+def add_tasks_to_queue(task_list):
+    for task in task_list:
+        print(f'Adding task to queue: {task}')
+        store_new_task(task)
+
+
+def extract_context(prompt):
+    return ask_myself(f"Users message: {prompt} \n Context extraction: Extract contextual information from the user's input that can help guide the generation of tasks to accomplish the desired goal. This might involve identifying relevant keywords, entities, or relationships within the text.")
+
+
+def begin_quest():
+    print('Please state the nature of your medical emergency:')
+    # response = input()
+    response = "I would like you to write a 1500 word article on the current state of legality of online betting in maryland as of April 2023."
+    context = extract_context(response)
+    print(f'Context - {context}')
+    tasks = extract_tasks(response, context)
+    add_tasks_to_queue(tasks)
+
+
+# "I would like you to write a 1500 word article on the current state of legality of online betting in maryland as of April 2023."
+begin_quest()
 
 
 def app_reviews(app_name='com.fliff.fapp', sample_size=400):
@@ -290,23 +435,23 @@ def process_app_reviews(app_name):
         if total_reviews > 10:
             # print(f'Threshold reached: {total_reviews}. Submitting...')
             total_reviews = 0
-            prompt = f'Please evaluate the provided app reviews and compile a list of positive feedback. Add to the reported count if the issue already exists in the listing. If its new, list as (Reported 1 Time):\n{aggregated_review_block}\n\nOur current aggregate list is as follows:\n{current_aggregate_pros}\n\nYour updated pros listing:\n'
+            prompt = f'Please evaluate the provided app reviews and compile a list of positive feedback. Add to the reported count if the issue already exists in the listing. If its new, list as (Reported 1 Time):\n{aggregated_review_block}\n\nOur current aggregate list is as follows:\n{current_aggregate_pros}\n\nUpdated bulleted positive feedback list:\n'
             time.sleep(5)
             assistant_reply = create_chat_completion(
                 model='gpt-3.5-turbo',
                 messages=[{"role": "user", "content": prompt}, {"role": "system", "content": "Constraints: Do not use the original feedback from the post, summarize yourself instead."}, {"role": "system", "content": "Constraints: If there is a similar review for a given piece of feedback, add to the total count (ex. - <whatever the pro is> (Reported 3 Times)"}, ]
             )
-            print(assistant_reply)
+            print('\n\nPositive\n' + assistant_reply + '\n\n')
             current_aggregate_pros = f'{assistant_reply}'
 
             # print(f'Threshold reached: {total_reviews}. Submitting...')
-            prompt = f'Please evaluate the provided app reviews and compile a list of positive feedback. Add to the reported count if the issue already exists in the listing. If its new, list as (Reported 1 Time):\n{aggregated_review_block}\n\nOur current aggregate list is as follows:\n{current_aggregate_cons}\n\nYour updated cons listing:\n'
+            prompt = f'Please evaluate the provided app reviews and compile a list of negative feedback. Add to the reported count if the issue already exists in the listing. If its new, list as (Reported 1 Time):\n{aggregated_review_block}\n\nOur current aggregate list is as follows:\n{current_aggregate_cons}\n\nUpdated bulleted negative feedback list:\n'
             time.sleep(5)
             assistant_reply = create_chat_completion(
                 model='gpt-3.5-turbo',
                 messages=[{"role": "user", "content": prompt}, {"role": "system", "content": "Constraints: Do not use the original feedback from the post, summarize yourself instead."}, {"role": "system", "content": "Constraints: If there is a similar review for a given piece of feedback, add to the total count (ex. - <whatever the con is> (Reported 3 Times)"}, ]
             )
-            print(assistant_reply)
+            print('\n\nNegative\n' + assistant_reply + '\n\n')
             current_aggregate_cons = f'{assistant_reply}'
 
             aggregated_review_block = ''
@@ -393,7 +538,10 @@ def google_official_search(query, num_results=8):
         search_results = result.get("items", [])
 
         # Create a list of only the URLs from the search results
-        search_results_links = [item["link"] for item in search_results]
+        # search_results_links = [item["link"] for item in search_results]
+
+        # Revised version that checks executed_urls to make sure we don't repeat URLs we have already processed.
+        search_results_links = [item["link"] for item in search_results if not page_processed(item["link"])]
 
     except HttpError as e:
         # Handle errors in the API call
@@ -409,8 +557,31 @@ def google_official_search(query, num_results=8):
     return search_results_links
 
 
-def browse_website(url):
-    summary = get_text_summary(url)
+def check_source_article():
+    blob = """
+    New York Sweepstakes Casino and Gambling Guide
+    
+    New York is finally catching up with neighboring states like Pennsylvania and New Jersey but unfortunately won’t have online casino gaming legalized in 2023. Residents can currently bet on horse racing, the state lottery, and sports. In this guide we cover everything residents need to know including New York sweepstakes casino options. 
+
+Online gambling in New York casinos was left out of the 2023 legislative session. However, some lawmakers, including New York Senator Joseph Addabbo, say licensing online casinos is a priority in 2024. If legislation is passed, New York would be one of the few US states to offer online sports betting, casinos, and poker legally. 
+
+For now, players can enjoy their favorite games at online sweepstakes casinos in New York, a great alternative where players can win real money. While there are multiple sweepstakes providers to choose from, it’s important to note that promotional sweepstakes games are heavily regulated in New York. Nonetheless, these operators ensure compliance with state laws by refraining from offering the sale of chips with actual cash value.
+
+Sweepstakes casinos online in New York must also comply with US sweepstakes laws to remain in operation. 
+    """
+    return blob
+
+
+def page_processed(browsed_url):
+    if browsed_url in executed_urls:
+        return True
+    else:
+        executed_urls.append(browsed_url)
+        return False
+
+
+def browse_website(url, desired_information):
+    summary = get_text_summary(url, desired_information)
     result = f"""Website Content Summary: {summary}"""
     return result
 
@@ -431,9 +602,9 @@ def get_tldr(target):
     return response.text
 
 
-def get_text_summary(url):
+def get_text_summary(url, desired_information):
     text = browse.scrape_text(url)
-    summary = browse.summarize_text(text)
+    summary = browse.summarize_text(text, desired_information)
 
     with open("research.txt", "a") as f:
         f.write(f'Source: {url}\nSummary:\n{summary}\n\n')
@@ -517,6 +688,28 @@ def start_agent(name, task, prompt, model=cfg.fast_llm_model):
     return f"Agent {name} created with key {key}. First response: {agent_response}"
 
 
+def get_next_search_query(search_generator):
+    return next(search_generator, None)
+
+
+def get_search_queries():
+    search_queries = [
+        "Maryland online casino gaming legislation",
+        "Maryland sweepstakes casino options",
+        "Maryland online gambling laws",
+        "Promotions at Maryland sweepstakes casinos",
+        "Top Maryland sweepstakes casinos",
+        "Maryland online sports betting",
+        "Maryland online poker laws",
+        "Land-based casinos in Maryland",
+        "Maryland responsible gaming resources",
+        "FAQs about Maryland online gambling"
+    ]
+
+    for query in search_queries:
+        yield query
+
+
 def message_agent(key, message):
     global cfg
 
@@ -545,6 +738,9 @@ def delete_agent(key):
         return f"Agent {key} does not exist."
     return f"Agent {key} deleted."
 
+
+search_generator = get_search_queries()
+current_task = fetch_next_task()
 
 if __name__ == '__main__':
     app_review_blog_writer()

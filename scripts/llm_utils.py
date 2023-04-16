@@ -15,27 +15,22 @@ def create_chat_completion(messages, model=None, temperature=None, max_tokens=No
                 response = openai.ChatCompletion.create(
                     deployment_id=cfg.openai_deployment_id,
                     model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens
+                    messages=messages
                 )
             else:
                 response = openai.ChatCompletion.create(
                     model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens
+                    messages=messages
                 )
 
             return response.choices[0].message["content"]
         except Exception as e:
             if 'maximum context length' in str(e):
                 print('Context too long, switching to gpt4 temporarily.')
+                print('messages:', messages)
                 response = openai.ChatCompletion.create(
                     model='gpt-4',
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens
+                    messages=messages
                 )
                 return response.choices[0].message["content"]
             print(e)
