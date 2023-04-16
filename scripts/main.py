@@ -38,7 +38,7 @@ def parse_assistant_reply(assistant_reply: str) -> Tuple[str, Any]:
     """
     Parse the assistant's reply and extract the thoughts and command.
 
-    :param assistant_reply: The assistants reply
+    assistant_reply (str): The assistants reply
     :return: A tuple with the assistant's thoughts and command as JSON objects
     """
     assistant_reply_json = fix_and_parse_json(assistant_reply)
@@ -60,8 +60,8 @@ def execute_command(command_name: str, arguments: Any) -> str:
     """
     Execute the given command and return the result as a string.
 
-    :param command_name: The name of the command
-    :param arguments: The arguments for the command
+    command_name (str): The name of the command
+    arguments (any): The arguments for the command
     :return: The result of the command execution as a string
     """
     if command_name.lower().startswith("error"):
@@ -144,8 +144,7 @@ def construct_prompt(ai_name: str, project: str, constraints: str, commands: str
             "text": "thought",
             "reasoning": "reasoning",
             "plan": "- short bulleted\\n- list that conveys\\n- long-term plan",
-            "criticism": "constructive self-criticism",
-            "speak": "thoughts summary to say to user"
+            "criticism": "constructive self-criticism"
         }},
         "command": {{
             "name": "command name",
@@ -163,15 +162,19 @@ def main() -> None:
     cfg = Config()
     cfg.set_continuous_mode(True)
 
-    project = "Research the availability and legality of sweepstakes casinos in Maryland."
+    project = "Investigate the status of online casino gaming legalization in Maryland, including any proposed bills and licensing processes."
+
     constraints = """
     1. Exclusively use the commands listed in double quotes e.g. "command name"
     2. Function autonomously and without user guidance or assistance."""
+
     commands = """
     1. Google Search: "google", args: "input": "<search>"
     2. Browse Website: "browse_website", args: "url": "<url>", "desired_information": "<desired_information>"
     3. Write to file: "write_to_file", args: "file": "<file>", "text": "<text>" """
+
     resources = "1. Internet access."
+
     evaluation = """
     1. Continuously review and analyze your actions to ensure you are performing to the best of your abilities.
     2. Constructively self-criticize your big-picture behavior constantly.
