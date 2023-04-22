@@ -26,6 +26,26 @@ def scrape_text(url):
     return text
 
 
+def scrape_text_with_conditions(url):
+    response = requests.get(url, headers=cfg.user_agent_header)
+
+    # Check if the response contains an HTTP error
+    if response.status_code >= 400:
+        return "Error: HTTP " + str(response.status_code) + " error"
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    for script in soup(["script", "style"]):
+        script.extract()
+
+    text = soup.get_text()
+    lines = (line.strip() for line in text.splitlines())
+    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+    text = '\n'.join(chunk for chunk in chunks if chunk)
+
+    return text
+
+
 def extract_hyperlinks(soup):
     hyperlinks = []
     for link in soup.find_all('a', href=True):
@@ -80,6 +100,40 @@ def create_message(chunk):
         "role": "user",
         "content": f"\"\"\"{chunk}\"\"\" Using the above text, please create a bulleted list of salient facts related to the contents:\n"
     }
+
+
+def summarize_text_with_conditions(text, desired_conditions):
+    if not text:
+        return "Error: No text to summarize"
+
+    text_length = len(text)
+    print(f"Text length: {text_length} characters")
+
+    summaries = []
+    chunks = list(split_text(text, 4097))
+
+    for i, chunk in enumerate(chunks):
+        print(f"Summarizing chunk {i + 1} / {len(chunks)}")
+        messages = [create_message(chunk)]
+
+        summary = create_chat_completion(
+            model=cfg.fast_llm_model,
+            messages=messages,
+            max_tokens=1000,
+        )
+        summaries.append(summary)
+
+    print(f"Summarized {len(chunks)} chunks.")
+
+    combined_summary = "\n".join(summaries)
+
+    final_summary = create_chat_completion(
+        model='gpt-4',
+        messages=[{"role": "user", "content": combined_summary}, {"role": "system", "content": f"Constraints: Please provide a detailed summary of facts related to {desired_conditions}]"}],
+        max_tokens=2000,
+    )
+
+    return final_summary
 
 
 def summarize_text(text):

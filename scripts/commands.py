@@ -9,6 +9,8 @@ import speak
 from config import Config
 import ai_functions as ai
 
+from tqdm import tqdm
+
 from file_operations import read_file, write_to_file, append_to_file, delete_file, search_files
 from execute_code import execute_python_file
 from json_parser import fix_and_parse_json
@@ -39,9 +41,7 @@ JULIAN_YEAR_OFFSET = 4716
 JULIAN_DAY_OFFSET = 1524
 MONTH_OFFSET = 0.6
 
-GOOGLE_SEARCH_URL = "https://google-web-search1.p.rapidapi.com/"
-RAPIDAPI_KEY = "68229cdbe2msh5723f22e8f8ab56p1eaefajsn20eccd66fc3c"
-RAPIDAPI_HOST = "google-web-search1.p.rapidapi.com"
+
 
 
 def get_command(response):
@@ -86,6 +86,7 @@ def execute_command(command_name, arguments):
         "write_tests": lambda args: ai.write_tests(args["code"], args.get("focus")),
         "execute_python_file": lambda args: execute_python_file(args["file"]),
         "browse_website": lambda args: browse_website(args["url"]),
+        "browse_website_with_conditions": lambda args: browse_website(args["url"]),
         "get_text_summary": lambda args: get_text_summary(args["url"]),
         "get_hyperlinks": lambda args: get_hyperlinks(args["url"]),
         "generate_image": lambda args: generate_image(args["prompt"]),
@@ -94,6 +95,7 @@ def execute_command(command_name, arguments):
         "take_break": lambda args: take_break(),
         "task_complete": lambda args: shutdown(),
         "mark_project_completed": lambda args: shutdown(),
+        "start_a_research_project": lambda args: get_next_research_link(),
     }
 
     # Execute the appropriate command handler based on the command name
@@ -105,6 +107,205 @@ def execute_command(command_name, arguments):
             return "Error: " + str(e)
     else:
         return f"Unknown command '{command_name}'. Please refer to the 'COMMANDS' list for available commands and only respond in the specified JSON format."
+
+
+# -------------------------------------------
+
+
+CURRENT_RESEARCH_OBJECTIVE = ''
+CURRENT_RESEARCH_URLS = []
+CURRENT_RESEARCH_CONTEXT = ''
+GOOGLE_SEARCH_URL = "https://google-web-search1.p.rapidapi.com/"
+RAPIDAPI_KEY = "68229cdbe2msh5723f22e8f8ab56p1eaefajsn20eccd66fc3c"
+RAPIDAPI_HOST = "google-web-search1.p.rapidapi.com"
+
+
+def search_google_raw(query, num_results=3):
+    query_params = {"query": query, "limit": num_results, "related_keywords": "false"}
+    headers = {"X-RapidAPI-Key": RAPIDAPI_KEY, "X-RapidAPI-Host": RAPIDAPI_HOST}
+    response = requests.get(GOOGLE_SEARCH_URL, headers=headers, params=query_params)
+    results = [result["url"] for result in response.json().get("results", [])]
+    # print(f"Searched for: {query}\nFound {len(results)} results\n{results}")
+    return results
+
+
+def get_text_summary_with_conditions(url, desired_information):
+    if url not in KNOWN_RESEARCH_SOURCES:
+        KNOWN_RESEARCH_SOURCES.append(url)
+        print(f"Processing new research source: {url}")
+        text = browse.scrape_text(url)
+        summary = browse.summarize_text_with_conditions(text, desired_information)
+        if '404' not in summary:
+            with open("research.txt", "a") as f:
+                f.write(f'Source: {url}\nSummary:\n{summary}\n\n')
+
+        return summary
+    else:
+        return "This URL has already been visited and researched. Proceed to another URL on the list."
+
+
+def split_text(text, max_length=8192):
+    paragraphs = text.split("\n")
+    current_length = 0
+    current_chunk = []
+
+    for paragraph in paragraphs:
+        if current_length + len(paragraph) + 1 <= max_length:
+            current_chunk.append(paragraph)
+            current_length += len(paragraph) + 1
+        else:
+            yield "\n".join(current_chunk)
+            current_chunk = [paragraph]
+            current_length = len(paragraph) + 1
+
+    if current_chunk:
+        yield "\n".join(current_chunk)
+
+
+
+def scrape_text(url):
+    response = requests.get(url, headers=cfg.user_agent_header)
+
+    # Check if the response contains an HTTP error
+    if response.status_code >= 400:
+        return "Error: HTTP " + str(response.status_code) + " error"
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    for script in soup(["script", "style"]):
+        script.extract()
+
+    text = soup.get_text()
+    lines = (line.strip() for line in text.splitlines())
+    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+    text = '\n'.join(chunk for chunk in chunks if chunk)
+
+    return text
+
+
+
+def summarize_text_with_conditions(text, desired_conditions):
+    if not text:
+        return "Error: No text to summarize"
+
+    text_length = len(text)
+    print(f"Text length: {text_length} characters")
+
+    summaries = []
+    chunks = list(split_text(text, 4097))
+
+    for i, chunk in enumerate(chunks):
+        print(f"Summarizing chunk {i + 1} / {len(chunks)}")
+        messages = [create_message(chunk)]
+
+        summary = create_chat_completion(
+            model=cfg.fast_llm_model,
+            messages=messages,
+            max_tokens=1000,
+        )
+        summaries.append(summary)
+
+    print(f"Summarized {len(chunks)} chunks.")
+
+    combined_summary = "\n".join(summaries)
+
+    final_summary = create_chat_completion(
+        model='gpt-4',
+        messages=[{"role": "user", "content": combined_summary}, {"role": "system", "content": f"Constraints: Please provide a detailed summary of facts related to {desired_conditions}]"}],
+        max_tokens=2000,
+    )
+
+    return final_summary
+
+
+def browse_website(url, desired_information=None):
+    if url not in visited_urls:
+        visited_urls.append(url)
+        if desired_information is None:
+            summary = get_text_summary(url)
+            result = f"""Website Content Summary: {summary}"""
+            return result
+        else:
+            result = get_text_summary_with_conditions(url, desired_information)
+            return result
+    else:
+        return "This URL has already been visited. Proceed to another URL on the list."
+
+
+def set_research_objective(desired_objective):
+    global CURRENT_RESEARCH_OBJECTIVE
+    CURRENT_RESEARCH_OBJECTIVE = desired_objective
+
+
+def extract_research_context():
+    global CURRENT_RESEARCH_OBJECTIVE
+    global CURRENT_RESEARCH_CONTEXT
+    message = f"Users research objective: {CURRENT_RESEARCH_OBJECTIVE} \n Context extraction: Using relevant keywords, entities, or relationships within the text, extract contextual information from the user's research objective that can help guide the creation of sub topics to research."
+    response = create_chat_completion(
+        model='gpt-4',
+        messages=[{"role": "user", "content": message}, ]
+    )
+    CURRENT_RESEARCH_CONTEXT = response
+
+
+def generate_research_topics():
+    global CURRENT_RESEARCH_OBJECTIVE
+    global CURRENT_RESEARCH_CONTEXT
+    message = f"Generate a list of research topics related to {CURRENT_RESEARCH_OBJECTIVE}\nContext: {CURRENT_RESEARCH_CONTEXT}\nTopics:"
+    result = create_chat_completion(
+        model='gpt-4',
+        messages=[{"role": "user", "content": message}]
+    )
+    research_topics = result.split("\n")
+    return research_topics
+
+
+def execute_research_project(project_name):
+    global CURRENT_RESEARCH_OBJECTIVE
+    CURRENT_RESEARCH_OBJECTIVE = project_name
+    print(f'Generating topic context for {CURRENT_RESEARCH_OBJECTIVE}')
+    extract_research_context()
+    research_topics = generate_research_topics()
+    print(f'Generated research topics: {research_topics}')
+    for topic in tqdm(research_topics):
+        print(f'Generating research urls for topic: {topic}')
+        search_queries = generate_research_queries(topic)
+        for query in tqdm(search_queries):
+            print(f'Generating research urls for query: {query}')
+            results = search_google_raw(query)
+            print(f'Generated research urls for query: {query}')
+            for result in results:
+                if result not in CURRENT_RESEARCH_URLS:
+                    print(f'Adding research url: {result}')
+                    with open('research_urls.txt', "a") as f:
+                        f.write(result + f' ({topic}) ' + "\n")
+                    print(f'Digging deeper into research url: {result} . {topic}')
+                    relevant_information = browse_website(result, topic)
+                    display_string = f'{result}\n{topic}\n{relevant_information}\n\n'
+                    print('\n' + display_string)
+                    with open('research_summaries.txt', "a") as f:
+                        f.write(display_string)
+
+
+def generate_research_queries(research_topic):
+    message = f"Using google optimum google search formatting, generate a comma separated single line text string list of Google search queries related to {research_topic} that will give us the most relevant results:"
+    result = create_chat_completion(
+        model='gpt-4',
+        messages=[{"role": "user", "content": message}]
+    )
+    search_queries = result.split(", ")
+    return search_queries
+
+
+def get_next_research_link():
+    global CURRENT_RESEARCH_URLS
+    if not CURRENT_RESEARCH_URLS:
+        return None
+    next_url = CURRENT_RESEARCH_URLS.pop(0)
+    return next_url
+
+
+
 
 
 # -------------------------------------------
@@ -255,174 +456,6 @@ def delete_agent(key):
 # -------------------------------------------
 
 
-def google_search(query, num_results=3):
-    search_results = []
-    for j in ddg(query, max_results=num_results):
-        search_results.append(j)
-
-    return json.dumps(search_results, ensure_ascii=False, indent=4)
-
-
-def page_processed(browsed_url):
-    if browsed_url in executed_urls:
-        return True
-    else:
-        executed_urls.append(browsed_url)
-        return False
-
-
-def google_official_search(query, num_results=8):
-    from googleapiclient.discovery import build
-    from googleapiclient.errors import HttpError
-    import json
-
-    try:
-        # Get the Google API key and Custom Search Engine ID from the config file
-        api_key = cfg.google_api_key
-        custom_search_engine_id = cfg.custom_search_engine_id
-
-        # Initialize the Custom Search API service
-        service = build("customsearch", "v1", developerKey=api_key)
-
-        # Send the search query and retrieve the results
-        result = service.cse().list(
-            q=query,
-            cx=custom_search_engine_id,
-            num=num_results,
-            dateRestrict='m:3'  # Restrict search results to the last 3 months
-        ).execute()
-
-        # Extract the search result items from the response
-        search_results = result.get("items", [])
-
-        # Create a list of only the URLs from the search results
-        # search_results_links = [item["link"] for item in search_results]
-
-        # Revised version that checks executed_urls to make sure we don't repeat URLs we have already processed.
-        search_results_links = [item["link"] for item in search_results if not page_processed(item["link"])]
-
-    except HttpError as e:
-        # Handle errors in the API call
-        error_details = json.loads(e.content.decode())
-
-        # Check if the error is related to an invalid or missing API key
-        if error_details.get("error", {}).get("code") == 403 and "invalid API key" in error_details.get("error", {}).get("message", ""):
-            return "Error: The provided Google API key is invalid or missing."
-        else:
-            return f"Error: {e}"
-
-    # Return the list of search result URLs
-    return search_results_links
-
-
-def browse_website(url):
-    if url not in visited_urls:
-        visited_urls.append(url)
-        summary = get_text_summary(url)
-        result = f"""Website Content Summary: {summary}"""
-        return result
-    else:
-        return "This URL has already been visited. Proceed to another URL on the list."
-
-
-def get_tldr(target):
-    url = "https://tldr-text-analysis.p.rapidapi.com/summarize/"
-
-    querystring = {"text": target, "max_sentences": "20"}
-
-    headers = {
-        "X-RapidAPI-Key": "68229cdbe2msh5723f22e8f8ab56p1eaefajsn20eccd66fc3c",
-        "X-RapidAPI-Host": "tldr-text-analysis.p.rapidapi.com"
-    }
-
-    response = requests.request("GET", url, headers=headers, params=querystring)
-
-    # print(response.text)
-    return response.text
-
-
-def extract_sources(file_path):
-    sources = []
-    with open(file_path, 'r') as file:
-        for line in file:
-            # Check if the line starts with "Source:"
-            if line.startswith("Source:"):
-                # Extract the URL by removing the "Source:" prefix and stripping whitespace
-                url = line[len("Source:"):].strip()
-                sources.append(url)
-    return sources
-
-
-def get_text_summary(url):
-    if url not in KNOWN_RESEARCH_SOURCES:
-        KNOWN_RESEARCH_SOURCES.append(url)
-        text = browse.scrape_text(url)
-        summary = browse.summarize_text(text)
-        if '404' not in summary:
-            with open("research.txt", "a") as f:
-                f.write(f'Source: {url}\nSummary:\n{summary}\n\n')
-
-        return """ "Result" : """ + summary
-    else:
-        return "This URL has already been visited and researched. Proceed to another URL on the list."
-
-
-def get_hyperlinks(url):
-    link_list = browse.scrape_links(url)
-    return link_list
-
-
-def scrub_google_results(url_list):
-    cleaned_list = [url for url in url_list if url not in executed_urls and url not in visited_urls]
-    return cleaned_list
-
-
-def gregorian_to_julian(date):
-    year, month, day = date.year, date.month, date.day
-
-    if month < 3:
-        year -= 1
-        month += 12
-
-    # Calculate the number of leap years between 0 and the current year (exclusive)
-    century = year // 100
-    leap_years = century // 4 - 2 * century + 1
-
-    # Calculate the Julian day using the formula
-    julian_day = int(365.25 * year) + int(MONTH_OFFSET * (month + 1)) + day + leap_years - JULIAN_DAY_OFFSET
-
-    # Calculate the Julian year using the formula
-    julian_year = JULIAN_YEAR_OFFSET + year + int((month - 2) / 12)
-
-    return julian_day + 365 * (julian_year - 1) + int((julian_year - 1) / 4)
-
-
-def calculate_julian_strings():
-    current_date = datetime.now()
-    start_date = current_date - timedelta(weeks=52)
-
-    current_julian = gregorian_to_julian(current_date)
-    start_julian = gregorian_to_julian(start_date)
-
-    # Construct a Google search query that matches results within the last year
-    # by specifying the Julian dates of the start and end of the date range.
-    date_range_query = f"daterange:{start_julian}-{current_julian}"
-    return date_range_query
-
-
-def search_google_raw(query, num_results=3):
-    query_params = {"query": query, "limit": num_results, "related_keywords": "false"}
-    headers = {"X-RapidAPI-Key": RAPIDAPI_KEY, "X-RapidAPI-Host": RAPIDAPI_HOST}
-    response = requests.get(GOOGLE_SEARCH_URL, headers=headers, params=query_params)
-    results = [result["url"] for result in response.json().get("results", [])]
-    print(f"Searched for: {query}\nFound {len(results)} results\n{results}")
-    return results
-
-
-def search_google(query, num_results=3):
-    raw_results = scrub_google_results(search_google_raw(query, num_results))
-
-    return raw_results
 
 
 # -------------------------------------------
@@ -440,3 +473,8 @@ def take_break():
 
 
 KNOWN_RESEARCH_SOURCES = extract_sources('research.txt')
+
+
+if __name__ == '__main__':
+    execute_research_project('Online Gambling in Maryland')
+    print('done')

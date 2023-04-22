@@ -15,4 +15,5 @@ pinecone-client==2.2.1
 redis
 orjson
 Pillow
-googleapiclient
+google-api-python-client
+tqdm

@@ -13,6 +13,7 @@ from memory import get_memory
 from spinner import Spinner
 
 
+
 user_input = "Determine which next command to use, and respond using the format specified above:"
 
 
@@ -82,15 +83,15 @@ def print_assistant_thoughts(assistant_reply: str, ai_name: str):
         # Extract relevant information from the JSON response
         assistant_thoughts = assistant_reply_json.get("thoughts", {})
         assistant_thoughts_text = assistant_thoughts.get("text")
-        assistant_thoughts_reasoning = assistant_thoughts.get("reasoning")
-        assistant_thoughts_plan = assistant_thoughts.get("plan")
-        assistant_thoughts_criticism = assistant_thoughts.get("criticism")
+        # assistant_thoughts_reasoning = assistant_thoughts.get("reasoning")
+        # assistant_thoughts_plan = assistant_thoughts.get("plan")
+        # assistant_thoughts_criticism = assistant_thoughts.get("criticism")
 
         # Print extracted information
-        print_to_console(f"{ai_name.upper()} THOUGHTS:", Fore.YELLOW, assistant_thoughts_text)
-        print_to_console("REASONING:", Fore.YELLOW, assistant_thoughts_reasoning)
-        print_plan(assistant_thoughts_plan)
-        print_to_console("CRITICISM:", Fore.YELLOW, assistant_thoughts_criticism)
+        print_to_console(f"\n{ai_name.upper()} THOUGHTS:", Fore.YELLOW, assistant_thoughts_text)
+        # print_to_console("REASONING:", Fore.YELLOW, assistant_thoughts_reasoning)
+        # print_plan(assistant_thoughts_plan)
+        # print_to_console("CRITICISM:", Fore.YELLOW, assistant_thoughts_criticism)
 
     except json.decoder.JSONDecodeError:
         print_to_console("Error: Invalid JSON\n", Fore.RED, assistant_reply)
@@ -166,16 +167,16 @@ def main() -> None:
     # Gather information on responsible gaming resources, initiatives, and support groups available in Maryland.
     # Develop a list of frequently asked questions (FAQs) specific to Maryland sports betting and online gambling.
     # Determine the legal status of real-money online casinos in Maryland and any related regulations.
-    project = "Compile a list of retail (land-based) casinos in Maryland, including their locations, features, and offerings."
+    project = "Determine the most popular sports events to bet on in Maryland in 2023"
 
     constraints = """
     1. Exclusively use the commands listed in double quotes e.g. "command name"
     2. Function autonomously and without user guidance or assistance."""
 
     commands = """
-    1. Google Search: "google", args: "input": "<search>"
-    2. Browse Website: "browse_website", args: "url": "<url>", "desired_information": "<desired_information>"
-    3. Mark Project Completed: "mark_project_completed", args: ""
+    1. Fetch Next Research URL: "fetch_next_research_url", args: ""
+    2. Browse Website: "browse_website", args: "url"
+    3. No More Research URLs Remain: "mark_project_completed", args: ""
     """
 
     resources = "1. Internet access."
