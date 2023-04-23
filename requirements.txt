@@ -17,3 +17,4 @@ orjson
 Pillow
 google-api-python-client
 tqdm
+pytrends
