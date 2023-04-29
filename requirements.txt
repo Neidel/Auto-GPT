@@ -18,3 +18,5 @@ Pillow
 google-api-python-client
 tqdm
 pytrends
+boto3
+pydub
