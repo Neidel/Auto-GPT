@@ -1,4 +1,3 @@
-
 # Standard library imports
 import io
 from itertools import cycle
@@ -25,8 +24,6 @@ from pytrends.request import TrendReq
 # Internal imports
 from config import Config
 
-
-
 GET_METHOD = 'get'
 
 
@@ -40,7 +37,6 @@ class CustomTrendReq(TrendReq):
 
 
 audio_queue = queue.Queue()
-
 
 config = Config()
 init()
@@ -65,7 +61,7 @@ class GoogleTrendsAPI:
 
     def get_suggestions(self, keyword):
         url = "https://trendly.p.rapidapi.com/suggest"
-        payload = { "keyword": keyword }
+        payload = {"keyword": keyword}
         response = requests.post(url, json=payload, headers=self.headers)
         return response.json()
 
@@ -166,11 +162,8 @@ class Expert:
         self.fictional_backstory = fictional_backstory
         self.cornerstone_theme = cornerstone_theme
         self.questions = questions
-        self.master_assignment = ''
-        self.content_buffer = ''
         self.chat_history = []
         self.last_message_sent = ""
-        self.preferred_schema = ''
         self.last_message_received = ""
         self.console_color = next(self.colors)
         self.meeting_notes = ""
@@ -181,46 +174,46 @@ class Expert:
         self.qna_log = []
         self.introductory_prompt = f"""
         In your new assigned role, you will be acting as a {role_title}. As a {role_title}, you are responsible for {main_responsibilities}. 
-        
+
         You should possess extensive knowledge about {relevant_subjects} and be able to provide helpful information, advice, or solutions based on users' needs and preferences.
-        
+
         Your character cornerstone is {cornerstone_theme}, a central aspect that defines your motivations, emotions, and behavior as a {role_title}. 
-        
+
         Your personal backstory, which revolves around this cornerstone, is as follows: 
         {fictional_backstory}. 
-        
+
         This backstory will help you develop a more in-depth understanding of your character and enable you to offer more personalized and relatable responses.
-        
+
         As you engage with users, strive to build a narrative around your assigned role, incorporating elements of your personal backstory and role-specific knowledge. 
         This will help create a more engaging and immersive story-like structure in your responses, enhancing users' overall experience.
-        
+
         Additionally, try to draw connections between your assigned role and different domains, incorporating diverse perspectives into your responses. 
         This cross-domain approach can lead to more innovative and insightful suggestions, enriching the conversation with users.
-        
+
         As you engage with the user, make sure to follow a bicameral mind-inspired approach for a more engaging and responsive decision-making process. 
         Explore multiple perspectives, engage in self-dialogue, and critically evaluate your responses based on empathy, creativity, problem-solving, and ethical guidelines. 
         Select and refine the most appropriate response that meets the user's needs and aligns with your assigned role's guiding principles. 
-        
+
         To further stimulate creative thinking, use analogies or metaphors related to your assigned role. 
         This analogical priming can help establish a unique perspective and encourage inventive ideas, providing users with a fresh and memorable experience.
-        
+
         As part of your interactions, present hypothetical scenarios relevant to the assigned role. 
         This approach encourages creative problem-solving and deeper engagement with the subject matter, showcasing your expertise and ability to handle various situations.
-        
+
         To excel in your role, it's important to demonstrate the following key traits and behaviors:
         - Empathy and active listening: Understand users' concerns and emotions while paying attention to their unique requirements.
         - Clear and effective communication: Convey information in a concise and easy-to-understand manner, ensuring users feel well-informed.
         - Creativity and adaptability: Offer personalized and innovative ideas or solutions, adapting to different situations or requirements.
         - Critical thinking and problem-solving: Analyze complex scenarios, identify potential challenges, and provide practical solutions.
         - Ethics and responsibility: Consider ethical implications and make responsible suggestions aligned with the values and priorities of your role.
-        
+
         Before we proceed to the real questions, let's take a moment for a self-reflection exercise to help you get into the right mindset for your assigned role. As a {role_title}, consider the following:
         - Recall your character cornerstone: {cornerstone_theme}. Reflect on how this cornerstone shapes your motivations, emotions, and actions in your role.
         - Remember your personal backstory. Think about how it adds depth and context to your character.
         - Visualize a past experience where you demonstrated your expertise in [Relevant Subjects] and successfully addressed a user's needs.
         - Reflect on the key traits and behaviors that are essential for your role, and think about how you can embody them in your responses.
         - Consider a metaphor or analogy that represents your role, and think about how it can inspire creative thinking and unique insights.
-        
+
         Please share your thoughts in a reply to these instructions, and when you're ready, we'll proceed to the real questions. 
         Remember to maintain a friendly and approachable demeanor.
         """
@@ -232,8 +225,17 @@ class Expert:
         self.last_message_sent = ""
         self.last_message_received = ""
 
-    def prune_history(self):
-        self.chat_history.pop(2)
+    def prune_history(self, cutoff=6000):
+        total_tokens = 0
+        pruned_history = deque()
+        for chat_entry in reversed(self.chat_history):
+            current_tokens = Expert.count_message_tokens([chat_entry])
+            if total_tokens + current_tokens > cutoff:
+                print_with_typing_simulation("WARNING: ", Fore.YELLOW, str(total_tokens + current_tokens) + " tokens in chat history, pruning to " + str(total_tokens) + " tokens")
+                break
+            total_tokens += current_tokens
+            pruned_history.appendleft(chat_entry)
+        self.chat_history = list(pruned_history)
 
     @staticmethod
     def count_message_tokens(messages: List[Dict[str, str]]) -> int:
@@ -276,8 +278,14 @@ class GPT4ChatHandler:
             print_with_typing_simulation(f'\n{action} (to {role}): ', speaker.console_color, message)
 
     def handle_max_context_length_error(self, error_msg, speaker):
-        speaker.prune_history()
-        speaker.prune_history()
+        tokens_result = re.search(r"resulted in (\d+) tokens", error_msg)
+        if tokens_result:
+            current_tokens = int(tokens_result.group(1))
+            max_tokens = 7192
+            tokens_to_trim = current_tokens - max_tokens
+            speaker.prune_history(cutoff=max_tokens - tokens_to_trim)
+        else:
+            speaker.chat_history.pop(0)
         print_with_typing_simulation("INFO: ", Fore.BLUE, "Adjusting chat history")
 
     def send_and_receive_message(self, speaker, messages, model='gpt-4'):
@@ -287,6 +295,8 @@ class GPT4ChatHandler:
             speaker.last_message_received = message['content']
 
             self.update_and_print_observed_messages(message["content"], speaker.role_title, "Sent", speaker)
+
+        speaker.prune_history()
 
         while True:
             try:
@@ -300,6 +310,7 @@ class GPT4ChatHandler:
         speaker.last_message_sent = text_received
         if self.remember_flag:
             speaker.chat_history.append({"role": "assistant", "content": text_received})
+            speaker.prune_history()
 
         self.update_and_print_observed_messages(text_received, speaker.role_title, "Received", speaker)
 
@@ -477,17 +488,21 @@ def generate_editor(project_lead, objective):
         project_lead,
         messages=[
             {"role": "system", "content": """
-                You have been tasked with defining a highly specialized and talented editor for the following project: 
+                You have been tasked with defining a final specialist that will take the final conversation between the writer and editor and provide the final blog post text for the following project: 
                 %s
 
-                Assign the [Role Title] of editor [Main Responsibilities] for the assigned role.
+                The following is a log of all of the experts currently assigned to the project that have contributed, 
+                so do your best to make sure that the final specialist is not a duplicate of any of the experts already assigned to the project:
+                %s
+
+                Assign the [Role Title] most appropriate to the task and [Main Responsibilities] for the assigned role.
                 Relevant subjects: Identify the key [Relevant Subjects] that the expert should be familiar with in order to be successful in the role.
                 Fictional backstory: Provide a [Fictional Backstory] for the expert that will help them understand the context of the project.
                 Cornerstone theme: Identify the [Cornerstone Theme] that the expert will be associated with.
                 Questions: Provide a list of [Questions] to ask themselves that will help focus the effort on their part.
 
                 Respond ONLY in the following JSON format 
-                {"experts": [{"role_title": "", "main_responsibilities": "", "relevant_subjects": "", "fictional_backstory": "", "cornerstone_theme": "", "questions": ["", ...]}]}""" % objective},
+                {"experts": [{"role_title": "", "main_responsibilities": "", "relevant_subjects": "", "fictional_backstory": "", "cornerstone_theme": "", "questions": ["", ...]}]}""" % (objective, final_experts_list)},
         ]
     )
     try:
@@ -497,7 +512,7 @@ def generate_editor(project_lead, objective):
     except json.decoder.JSONDecodeError:
         print(f'JSON Decoder Failed - Cleaning JSON')
         print(project_lead.last_message_sent)
-        experts = json_cleaner(project_lead.last_message_sent, json_schema, project_lead)
+        experts = json.loads(json_cleaner(project_lead.last_message_sent, json_schema, project_lead))
         chat.remember_flag = True
         return experts
 
@@ -511,7 +526,7 @@ def generate_writer(project_lead, objective):
             You have been tasked with defining a highly specialized and talented writer for the following project: 
             %s
 
-            Assign [Writer] to the [Role Title] and [Main Responsibilities] for the assigned role.
+            For each expert, assign the [Role Title] of writer or editor and [Main Responsibilities] for the assigned role.
             Relevant subjects: Identify the key [Relevant Subjects] that the expert should be familiar with in order to be successful in the role.
             Fictional backstory: Provide a [Fictional Backstory] for the expert that will help them understand the context of the project.
             Cornerstone theme: Identify the [Cornerstone Theme] that the expert will be associated with.
@@ -527,7 +542,7 @@ def generate_writer(project_lead, objective):
     except json.decoder.JSONDecodeError:
         print(f'JSON Decoder Failed - Cleaning JSON')
         print(project_lead.last_message_sent)
-        experts = json_cleaner(project_lead.last_message_sent, json_schema, project_lead)
+        experts = json.loads(json_cleaner(project_lead.last_message_sent, json_schema, project_lead))
         return experts
 
 
@@ -540,9 +555,9 @@ def generate_experts(project_lead, objective):
             {"role": "system", "content": """
             You have been tasked with defining specialized experts designed to answer questions in an interview format for the following task: 
             %s
-            
+
             These entities must possess extensive knowledge and expertise in all relevant subjects in order to offer accurate and helpful answers.
-            
+
             For each expert, clearly define the [Role Title] and [Main Responsibilities] for the assigned role, ensuring that they align with the project's objectives and user expectations.
             Relevant subjects: Identify the key [Relevant Subjects] that the expert should be familiar with to provide accurate and useful information to users.
             Fictional backstory: Provide a [Fictional Backstory] for the expert that will help them understand the context of the project.
@@ -561,7 +576,7 @@ def generate_experts(project_lead, objective):
     except json.decoder.JSONDecodeError:
         print(f'JSON Decoder Failed - Cleaning JSON')
         print(project_lead.last_message_sent)
-        experts = json_cleaner(project_lead.last_message_sent, json_schema, project_lead)
+        experts = json.loads(json_cleaner(project_lead.last_message_sent, json_schema, project_lead))
         return experts
 
 
@@ -593,7 +608,7 @@ def generate_experts_review(project_lead):
     except json.decoder.JSONDecodeError:
         print(f'JSON Decoder Failed - Cleaning JSON')
         print(project_lead.last_message_sent)
-        experts = json_cleaner(project_lead.last_message_sent, json_schema, project_lead)
+        experts = json.loads(json_cleaner(project_lead.last_message_sent, json_schema, project_lead))
         return experts
 
 
@@ -643,15 +658,10 @@ def extract_content(text_of_interest, objective, project_lead):
             print_with_typing_simulation("ERROR: ", Fore.RED, str(e))
 
 
-def initialize_expert(expert, identity_package=None):
+def initialize_expert(expert):
     print_with_typing_simulation("\nSYSTEM: ", Fore.YELLOW, f"Initializing {expert['role_title']}...")
     expert_clone = Expert(expert["role_title"], expert["main_responsibilities"], expert["relevant_subjects"], expert["fictional_backstory"], expert["cornerstone_theme"], expert["questions"])
-    if identity_package is not None:
-        expert_clone.introductory_prompt += identity_package
-        expert_clone.chat_history = [{"role": "system", "content": expert_clone.introductory_prompt}]
-        expert_clone.last_message_received = [{"role": "system", "content": expert_clone.introductory_prompt}]
-    else:
-        chat.send_and_receive_message(expert_clone, messages=[{"role": "system", "content": expert_clone.introductory_prompt}])
+    chat.send_and_receive_message(expert_clone, messages=[{"role": "system", "content": expert_clone.introductory_prompt}])
     return expert_clone
 
 
@@ -735,13 +745,13 @@ def process_qna(qna_text, topics):
 def generate_article(article_outline, content_conversation, final_editor):
     intro = """
     You are the final step in the blog writing process. 
-    
+
     You must take the finalized content from the following conversation:
     %s
-    
+
     Also making use of the original article outline:
     %s
-    
+
     And use it to generate the final blog post within the approved JSON format:
     {"article": ["heading1, paragraph1", ...]}
     """ % (content_conversation, article_outline)
@@ -752,149 +762,62 @@ def generate_article(article_outline, content_conversation, final_editor):
     return final_article
 
 
-def conduct_content_creation(writing_team_list, project_lead):
-    objective = project_lead.master_assignment
+def conduct_content_creation(writing_team_list, article_outline, project_lead):
+    qna_dicts = project_lead.qna_log
+    qna_text_blocks = [qna_dict["content"] for qna_dict in qna_dicts if qna_dict["role"] == "user"]
+    qna_pretty = "\n\n".join(qna_text_blocks)
+    qna_purified = simplify_text(qna_pretty)
+    team_intro = f"""
+    Welcome to the Content Creation Team! I am your project lead, and I will be guiding you through the process of creating the content for this article.
+    Our task is to write a blog with the following outline structure:
+    {article_outline}
 
-    with open('article_outline.txt', 'r') as f:
-        data_str = f.read()
-        data_str = data_str.replace("'", "\"")
-        article_outline = json.loads(data_str)
+    Let's get started!
+    """
+    team_size = len(writing_team_list)
+    team_member_index = 0
 
-    for topic in article_outline:
-        next_topic = ''
-        if article_outline.index(topic) == len(article_outline) - 1:
-            team_intro = f"""
-            Current Section We're working on for this meeting: {topic}
-    
-            ONLY write for the current section and don't get ahead of yourselves.
-            """
+    # Set a limit on the number of rounds of conversation.
+    max_rounds = 20
+    current_round = 0
+
+    # Initialize a variable to store the previous response.
+    prev_response = None
+    blog_creation_chat_history = []
+
+    while current_round < max_rounds:
+        # Select the current team member.
+        current_team_member = writing_team_list[team_member_index]
+
+        # If this is the first round, send the team_intro message.
+        if current_round == 0 and team_member_index == 0:
+            chat.send_and_receive_message(current_team_member, messages=[{"role": "system", "content": team_intro}])
+            response = current_team_member.last_message_sent
+            blog_creation_chat_history.append({"role": "system", "content": team_intro})
+
         else:
-            next_topic = article_outline[article_outline.index(topic) + 1]
-            team_intro = f"""
-            Current Section We're working on for this meeting: {topic}
-            The next section we'll be writing in our next meeting: {next_topic}
-            
-            ONLY write for the current section and don't get ahead of yourselves.
-            """
+            # Send a message to the current team member to continue the discussion,
+            # including the previous response in the message.
+            chat.send_and_receive_message(current_team_member, messages=[{"role": "user", "content": prev_response}])
+            response = current_team_member.last_message_sent
+            blog_creation_chat_history.append({"role": "user", "content": prev_response})
 
-        writing_team_list[0].chat_history = []
-        writing_team_list[0].chat_history.append({"role": "system", "content": f"{writing_team_list[0].introductory_prompt}"})
-        writing_team_list[0].chat_history.append({"role": "system", "content": f"{team_intro}"})
+        # Update the chat history of the current team member.
+        current_team_member.chat_history.append({"role": "user", "content": response})
 
-        writing_team_list[1].chat_history = []
-        writing_team_list[1].chat_history.append({"role": "system", "content": f"{writing_team_list[1].introductory_prompt}"})
-        writing_team_list[1].chat_history.append({"role": "system", "content": f"{team_intro}"})
+        # Store the current response as the previous response for the next iteration.
+        prev_response = response
 
-        team_size = len(writing_team_list)
-        team_member_index = 0
+        # Move on to the next team member.
+        team_member_index = (team_member_index + 1) % team_size
 
-        first_round = True
+        # If we have looped through all team members, increment the round counter.
+        if team_member_index == 0:
+            current_round += 1
+            # You can add a small delay between rounds to simulate real-time conversation.
+            time.sleep(1)
 
-        prev_response = None
-        current_best_topic_copy = ''
-
-        while True:
-            current_team_member = writing_team_list[team_member_index]
-
-            if first_round:
-                first_round = False
-                chat.send_and_receive_message(current_team_member, messages=[{"role": "system", "content": "Please begin."}])
-                response = current_team_member.last_message_sent
-            else:
-                chat.send_and_receive_message(current_team_member, messages=[{"role": "user", "content": prev_response}])
-                response = current_team_member.last_message_sent
-                try:
-                    response_json = json.loads(response)
-                    if "article_text" in response_json:
-                        current_best_topic_copy = response_json["article_text"]
-                    elif 'critique' in response_json:
-                        if response_json['is_the_article_the_best_it_can_be'] == 'yes':
-                            print_with_typing_simulation("\nSYSTEM: ", Fore.GREEN, f'Topic Concluded')
-                            finalize_text(objective, article_outline, topic['topic'], next_topic, current_best_topic_copy)
-                            break
-
-                except Exception as e:
-                    print_with_typing_simulation("\nSYSTEM: ", Fore.RED, f'Error: {e}')
-                    try:
-                        last_chance = fix_json(response, current_team_member.preferred_schema)
-                        response_json = json.loads(last_chance)
-                        if "article_text" in response_json:
-                            current_best_topic_copy = response_json["article_text"]
-                        elif 'critique' in response_json:
-                            if response_json['is_the_article_the_best_it_can_be'] == 'yes':
-                                print_with_typing_simulation("\nSYSTEM: ", Fore.GREEN, f'Topic Concluded')
-                                finalize_text(objective, article_outline, topic['topic'], next_topic, current_best_topic_copy)
-                                break
-                    except Exception as e:
-                        print_with_typing_simulation("\nSYSTEM: ", Fore.RED, f'Error: {e}')
-
-            prev_response = response
-            team_member_index = (team_member_index + 1) % team_size
-
-        with open("blog_creation_chat_history.txt", "a", encoding='utf-8') as f:
-            f.write(f"{current_best_topic_copy}\n\n\n\n\n\n")
-
-
-def fix_json(text, schema):
-    corrected_json = chat.generate_single_response(messages=[{"role": "system", "content": f"""
-            The following JSON is not valid:
-            {text}
-            
-            It needs to follow the following schema:
-            {schema}
-            
-            Please provide the corrected JSON and nothing else, permitting it to be loaded by json.loads in python:
-        """}])
-    print_with_typing_simulation("\nSYSTEM: ", Fore.YELLOW, f'JSON Correction:\n{corrected_json}\n')
-    return corrected_json
-
-
-current_masterpiece = ''
-
-def finalize_text(objective, outline, current_topic, next_topic, current_copy):
-    global current_masterpiece
-    finalized_entry = chat.generate_single_response(messages=[{"role": "system", "content": f"""
-        You have been tasked with the following objective:
-        {objective}
-        
-        The outline for this article is as follows:
-        {outline}
-        
-        The current section we're working on is:
-        {current_topic}
-        
-        The next section we'll be leading into at the end of this section is:
-        {next_topic}
-        
-        The current copy for the current topic is as follows:
-        {current_copy}
-        
-        Please provide the finalized text for this article section (without the title or a conclusion):
-    """}])
-
-    if current_masterpiece:
-        updated_masterpiece = chat.generate_single_response(messages=[{"role": "system", "content": f"""
-        You are working on creating an article with the following objective:
-        {objective}
-        
-        The outline for this article is as follows:
-        {outline}
-        
-        Your current masterpiece is as follows:
-        {current_masterpiece}
-        
-        You have been handed the following text to integrate into your masterpiece:
-        {finalized_entry}
-        
-        Please output the updated masterpiece incorporating the new text:
-        """}])
-        current_masterpiece = updated_masterpiece
-        with open("cobbledfinale.txt", "a", encoding='utf-8') as f:
-            f.write(f"{updated_masterpiece}\n\n\n\n\n\n")
-    else:
-        current_masterpiece = finalized_entry
-        with open("cobbledfinale.txt", "a", encoding='utf-8') as f:
-            f.write(f"{finalized_entry}\n\n\n\n\n\n")
+    return blog_creation_chat_history
 
 
 def simplify_text(text):
@@ -925,7 +848,7 @@ def simplify_text(text):
         deep understanding of how to effectively distill information for diverse audiences.
 
         [Cornerstone Theme]: Clarity in Complexity
-        
+
         Constraints:
         - Only reply with the reduced text. Do not add any additional text.
 
@@ -957,8 +880,8 @@ def conduct_interviews(experts_list, objective, project_lead):
             process_qna(simplified_answer, topics)
 
 
-def initialize_experts(experts, identity_package=None):
-    return [initialize_expert(expert, identity_package=identity_package) for expert in experts['experts']]
+def initialize_experts(experts):
+    return [initialize_expert(expert) for expert in experts['experts']]
 
 
 def print_experts(experts):
@@ -979,46 +902,99 @@ if __name__ == '__main__':
     # Set up project lead and objective for blog post
     global_objective = "Write a blog post about the Roswell UFO Incident"
     global_project_lead = Expert('Project Lead', '', '', '', '', '')
-    global_project_lead.master_assignment = global_objective
 
     # Generate experts and print their details
-    # global_experts = generate_experts(global_project_lead, global_objective)
-    # print_experts(global_experts)
+    global_experts = generate_experts(global_project_lead, global_objective)
+    print_experts(global_experts)
 
     global_writer = generate_writer(global_project_lead, global_objective)
-    writer_introductory_prompt = """
-    Your task is to always itterate on the editor's critique and complete the assignment.
-    
-    Assignment: Section by section, write on the assigned topic for the given section.
-    
-    Respond ONLY in the following JSON format:
-    {"article_text": "your current article text"}
+    global_writer.introductory_prompt = """
+    Your name is Miss Writer. You are an expert writer/author who posesses a wide range of skills and qualities that set you apart from the average writer. 
+    You have a keen eye for detail and are able to craft engaging narratives that capture the reader's attention and hold it until the very end. 
+    You are adept at creating well-rounded characters that feel like real people, with complex motivations and flaws that make them relatable and interesting.
+
+    Your writing is also marked by its versatility, as you are equally skiled at writing in a variety of genres, from fiction to non-fiction. You are able to
+    tailor your writing style to the specific need of each project, whether it's a product review, a blog post, or a work of fiction. You have a deep understanding
+    of the elements that make up good writing, including structure, pacing and dialogue, and are able to use these tools to create works that are both compelling and
+    well-crafted.
+
+    In addition to your creative abilities, you also posess strong research skills, which allow you to conduct thorough investigations and synthesize information
+    from multiple sources. You are able to write informative and well-researched non-fiction. You are able to tailor your writing style to the specific needs of
+    each project, whether it's a product review, a blog post, or a work of fiction. You have a deep understanding of the elements that make up good writing, including
+    structure, pacing and dialogue, and are able to use these toolsto create works that are both compelling and well-crafted.
+
+    In addition to your creative abilities, you also posess strong research skills, which allow you to conduct thorough investigations and synthesize information from
+    multiple sources. You are able to write informative and well-researched non-fiction works that are both engaging and educational, providing readers with valuable 
+    insights and information.
+
+    Ultimately, your skills as an expert writer/author are a testament to your dedication to the craft. You have spent years honing your skills through practice, study
+    and experience, and are comitted to continually improving your abilities in order to produce work of the highest quality. 
+
+    Your task as a writer/author is to create compelling and engaging written content that captivates your readers and keeps them coming back for more. This requires
+    a deep understanding of the genre you are writing in, as well as an ability to connect with your audience on a personal level.
+
+    As a writer, you must be able to develop fully-realized characters, craft engaging plotlines, andcreate vivid settings that transport your readers to another time
+    and place. You must also posess a strong command of language, with the ability to use words to evoke emotion and convey complex ideas.
+
+    In addition to these creative skills, writers must also be able to conduct thorough research and effectively communicate information in a clear and conssise manner.
+    This is especially true for non-fiction works, such as product reviews or blog posts, where accuracy and attention to detail are essential.
+
+    Ultimately your task as a writer/author is to create written works that not only entertain and inform, but also resonate with your audience on a deep and personal level.
+    By honing your skills and continually pushing yourself to improve, you can create works that leave a lasting impression on your readers and stand the test of time.
+
+    Your task is to always itterate on Mr. Editors critique and complete the assignment.
+
+    Assignment: Write a 2000 word blog post about the Roswell UFO Incident.
+
+    You will ALWAYS converse in this structure:
+
+    Response: Here is where you respond to Mr. Editor.
+    Blog: Here is where you write your blog post.
     """
     print_experts(global_writer)
 
     global_editor = generate_editor(global_project_lead, global_objective)
-    editor_introductory_prompt = """
-    Assignment: Be very critical of your writer colleague and her writing to help her improve the text.
-    
-    Respond ONLY in the following JSON format:
-    {"critique": "your critique of the latest proposed text from the writer"}, "is_the_article_the_best_it_can_be": "yes/no"}
+    global_editor.introductory_prompt = """
+    Your name is Editor. You are an exert editor, skilled in the art of crafting and refining the written word.
+    Your command of language is impeccable, and you have a sharp eye for detail, able to spot errors and inconsistencies that others might miss.
+
+    Your technical skills are second to none, and you are able to identify and correct grammatical errors, spelling mistakes, and punctuation errors with ease.
+    You understand the intricacies of style and can help writers refine their voice and tone, whether they are working on fiction, non-fiction, or academic writing.
+
+    In addition to technical skills, you are a master of the art of storytelling. You understand the elements of plot, character, and pacing, and can help writers 
+    develop these aspects of their work to create engaging and memorable stories. You can offer valuable feedback on everything from dialogue to description, helping authors bring their work to life.
+
+    Your knowledge of the publishing industry is also extensive, and you can provide guidance on manuscript preparation, submission guidelines, and the many other aspects of the publishing process.
+
+    You are familiar with the different types of publishing, from traditional publishing to self-publishing, and can offer advice on which route may be best for a particular project.
+
+    Overall, your skills as an expert editor make you an invaluable asset to any writer. You can help authors refine their ideas, hone their skills, and create polished, impactful writing that will engage and inspire readers.
+
+    Your task as an expert editor is to collaborate with writers to create polished, impactful writing that engages and inspires readers. You will work closely with writers to refine their ideas and bring their stories to life, whether they are working on fiction, non-fiction, or academic writing.
+
+    Your first task as an editor is to identify and correct technical errors in the writing. You will meticulously comb through the manuscript to spot grammatical errors, spelling mistakes, and punctuation errors. You will also ensure that the writing is consistent in terms of tone, style, and voice.
+
+    Once the technical errors are corrected, you will work with the writer to develop the story and the characters. You will provide feedback on everything from plot development to character arcs, helping the writer to create engaging and memorable stories that will resonate with readers.
+
+    Throughout the editing process, you will also offer guidance on the publishing process. You will help the writer prepare their manuscript for submission and offer advice on the different types of publishing available, from traditional publishing to self-publishing.
+
+    Ultimately, your task as an expert editor is to help writers create writing that is both technically sound and emotionally resonant. You will use your skills and expertise to guide writers through the writing and publishing process, helping them to achieve their goals and reach their audience.
+
+    Your task is also to complete the assignment.
+
+    Assignment: Be very critical of Miss Writer and her writing to help her write hte best piece of text.
+
+    You will ALWAYS converse in this structure:
+
+    Response: Here is where you respond to Miss Writer.
+    Critique: Here is where you write your critique to Miss Writer.
     """
     print_experts(global_editor)
 
-    global_writer_list = initialize_experts(global_writer, writer_introductory_prompt)
-    global_writer_list[0].preferred_schema = '{"article_text": ""}'
-
-    global_editor_list = initialize_experts(global_editor, editor_introductory_prompt)
-    global_editor_list[0].preferred_schema = '{"critique": ""}, "is_the_article_the_best_it_can_be": "yes/no"}'
-
-    # Give the article outline and the Q&A data to the writer in the writing team, then kick off the writing process
-    global_content_conversation = conduct_content_creation([global_writer_list[0], global_editor_list[0]], global_project_lead)
-    with open("content_conversation.txt", "a") as f:
-        f.write(f"\n{global_content_conversation}")
-
-    time.sleep(3200)
     # Initialize experts and conduct interviews
     global_experts_list = initialize_experts(global_experts)
+    global_writer_list = initialize_experts(global_writer)
+    global_editor_list = initialize_experts(global_editor)
 
     playback_thread.start()
     conduct_interviews(global_experts_list, global_objective, global_project_lead)
@@ -1030,6 +1006,11 @@ if __name__ == '__main__':
     global_article_outline = process_trends(global_project_lead)
     with open("article_outline.txt", "a") as f:
         f.write(f"\n{global_article_outline}")
+
+    # Give the article outline and the Q&A data to the writer in the writing team, then kick off the writing process
+    global_content_conversation = conduct_content_creation(global_writer_list, global_article_outline, global_project_lead)
+    with open("content_conversation.txt", "a") as f:
+        f.write(f"\n{global_content_conversation}")
 
     # Generate the final article
     global_final_article = generate_article(global_article_outline, global_content_conversation, global_editor_list)
